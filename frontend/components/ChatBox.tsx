@@ -2,54 +2,69 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  Send,
-  Bot,
-  User,
-  Zap,
-  Cpu,
-  ShieldAlert,
-  Clock,
   Sparkles,
-  BookOpen,
-  RotateCcw,
+  Paperclip,
+  Search,
+  Zap,
+  Lightbulb,
+  GitFork,
+  Box,
+  Send,
   Loader2,
   FileText,
+  RotateCcw,
+  ArrowUp,
+  ChevronRight,
+  Copy,
+  Check,
+  CheckCircle2,
+  MessageSquare,
+  Clock,
+  ShieldAlert,
 } from "lucide-react";
 import { askQuestion, getChatHistory, getDocSessions, DocumentItem, Citation } from "@/lib/api";
 
-interface MessageItem {
+interface Message {
   id: string;
   sender: "user" | "assistant";
   text: string;
   citations?: Citation[];
   cacheHit?: boolean;
+  source?: "exact" | "semantic" | "llm" | "guardrail" | "email_callback";
   tokensUsed?: number;
   latencyMs?: number;
-  source?: string;
   status?: string;
+  timestamp?: string;
 }
 
 interface ChatBoxProps {
   selectedDoc: DocumentItem | null;
+  onOpenUpload?: () => void;
+  onToggleTrainingData?: () => void;
+  activeDocCount?: number;
 }
 
-export default function ChatBox({ selectedDoc }: ChatBoxProps) {
-  const [messages, setMessages] = useState<MessageItem[]>([]);
+export default function ChatBox({
+  selectedDoc,
+  onOpenUpload,
+  onToggleTrainingData,
+  activeDocCount = 0,
+}: ChatBoxProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [activeMode, setActiveMode] = useState<"fast" | "indepth" | "hybrid" | "holistic">("fast");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto scroll to bottom
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // Auto-scroll to bottom of conversation
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // Load existing session history when selected document changes
+  // Load chat history when selected document changes
   useEffect(() => {
     if (!selectedDoc) {
       setMessages([]);
@@ -58,300 +73,566 @@ export default function ChatBox({ selectedDoc }: ChatBoxProps) {
     }
 
     let isMounted = true;
-    getDocSessions(selectedDoc.id).then((sessions) => {
-      if (!isMounted) return;
-      if (sessions && sessions.length > 0) {
-        const latestSession = sessions[0];
-        setSessionId(latestSession.id);
-        getChatHistory(latestSession.id).then((history) => {
+    getDocSessions(selectedDoc.id)
+      .then(async (sessions) => {
+        if (!isMounted) return;
+        if (sessions && sessions.length > 0) {
+          const latest = sessions[0];
+          setSessionId(latest.id);
+          const history = await getChatHistory(latest.id);
           if (!isMounted) return;
-          const formatted: MessageItem[] = [];
-          history.forEach((h) => {
+
+          const formatted: Message[] = [];
+          for (const item of history) {
             formatted.push({
-              id: `${h.id}-q`,
+              id: `q-${item.id}`,
               sender: "user",
-              text: h.question,
+              text: item.question,
+              timestamp: "Just now",
             });
-            if (h.answer) {
+            if (item.answer) {
               formatted.push({
-                id: `${h.id}-a`,
+                id: `a-${item.id}`,
                 sender: "assistant",
-                text: h.answer,
-                cacheHit: h.cache_hit,
-                tokensUsed: h.tokens_used,
-                latencyMs: h.latency_ms,
-                source: h.cache_hit ? "cache" : "llm",
-                status: h.status,
+                text: item.answer,
+                tokensUsed: item.tokens_used,
+                cacheHit: item.cache_hit,
+                latencyMs: item.latency_ms,
+                status: item.status,
+                timestamp: "Just now",
               });
             }
-          });
+          }
           setMessages(formatted);
-        });
-      } else {
-        setSessionId(null);
+        } else {
+          setMessages([]);
+          setSessionId(null);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load conversation history:", err);
         setMessages([]);
-      }
-    });
+      });
 
     return () => {
       isMounted = false;
     };
   }, [selectedDoc]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const query = input.trim();
-    if (!query || !selectedDoc || loading) return;
+  const handleSend = async (e?: React.FormEvent, directText?: string) => {
+    if (e) e.preventDefault();
+    const query = directText || input;
+    if (!query.trim() || !selectedDoc || loading) return;
 
-    // Add user message immediately to chat stream
-    const userMsgId = `user-${Date.now()}`;
-    setMessages((prev) => [
-      ...prev,
-      { id: userMsgId, sender: "user", text: query },
-    ]);
-    setInput("");
+    const userMessageText = query.trim();
+    if (!directText) setInput("");
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    // Add User Message to stream
+    const userMsg: Message = {
+      id: `user-${Date.now()}`,
+      sender: "user",
+      text: userMessageText,
+      timestamp: timeStr,
+    };
+    setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
     try {
-      const response = await askQuestion(selectedDoc.id, query, sessionId || undefined);
+      const res = await askQuestion(
+        selectedDoc.id,
+        userMessageText,
+        sessionId || undefined
+      );
 
-      if (response.session_id) {
-        setSessionId(response.session_id);
+      if (res.session_id && !sessionId) {
+        setSessionId(res.session_id);
       }
 
-      const assistantMsgId = `bot-${Date.now()}`;
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: assistantMsgId,
-          sender: "assistant",
-          text: response.answer,
-          citations: response.citations,
-          cacheHit: response.cache_hit,
-          tokensUsed: response.tokens_used,
-          latencyMs: response.latency_ms,
-          source: response.source,
-          status: response.status,
-        },
-      ]);
+      const botMsg: Message = {
+        id: `bot-${Date.now()}`,
+        sender: "assistant",
+        text: res.answer,
+        citations: res.citations,
+        cacheHit: res.cache_hit || res.source === "exact" || res.source === "semantic",
+        source: res.source as any,
+        tokensUsed: res.tokens_used,
+        latencyMs: res.latency_ms,
+        status: res.status,
+        timestamp: timeStr,
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
     } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `bot-err-${Date.now()}`,
-          sender: "assistant",
-          text: err.message || "Failed to process question. Please try again.",
-          status: "failed",
-        },
-      ]);
+      const errorMsg: Message = {
+        id: `err-${Date.now()}`,
+        sender: "assistant",
+        text: `Error processing query: ${err.message || "Please try again."}`,
+        source: "guardrail",
+        tokensUsed: 0,
+        timestamp: timeStr,
+      };
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const handleNewChat = () => {
     setSessionId(null);
     setMessages([]);
+    setInput("");
   };
 
-  if (!selectedDoc) {
-    return (
-      <section className="flex-1 h-full flex flex-col items-center justify-center p-8 bg-slate-950/70 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center mx-auto mb-4 text-teal-400">
-          <FileText className="w-8 h-8" />
-        </div>
-        <h3 className="text-lg font-bold text-white mb-2">No Document Selected</h3>
-        <p className="text-xs text-slate-400 max-w-sm">
-          Please select or upload a PDF document from the left sidebar to start asking questions with zero token cost.
-        </p>
-      </section>
-    );
-  }
+  const hasMessages = messages.length > 0;
 
   return (
-    <section className="flex-1 h-full flex flex-col justify-between bg-slate-950/70 relative">
-      {/* Active Document Top Banner */}
-      <div className="bg-slate-900/90 border-b border-slate-800 px-6 py-2.5 flex items-center justify-between text-xs z-10 backdrop-blur-sm">
-        <div className="flex items-center gap-2 truncate pr-4">
-          <BookOpen className="w-4 h-4 text-teal-400 shrink-0" />
-          <span className="text-slate-400">Active Document:</span>
-          <span className="font-semibold text-white truncate">
-            {selectedDoc.file_name}
-          </span>
-          <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-teal-300 font-mono">
-            {selectedDoc.total_chunks} chunks
-          </span>
+    <div className="flex-1 h-full flex flex-col justify-between relative overflow-hidden font-sans">
+      {/* Soft Ambient Lilac/Violet Glows */}
+      <div className="absolute top-[15%] left-1/2 -translate-x-1/2 w-[750px] h-[400px] bg-purple-300/30 rounded-full blur-[110px] pointer-events-none" />
+      <div className="absolute top-[45%] right-[5%] w-[500px] h-[400px] bg-pink-300/25 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-[5%] left-[5%] w-[450px] h-[350px] bg-indigo-300/20 rounded-full blur-[90px] pointer-events-none" />
+
+      {/* Top Status Bar (Visible when conversation is active or document is connected) */}
+      <div className="px-6 py-3 border-b border-white/40 bg-white/20 backdrop-blur-md flex items-center justify-between z-20 shrink-0">
+        <div className="flex items-center gap-2.5">
+          {selectedDoc ? (
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/60 border border-white/80 shadow-sm text-xs backdrop-blur-md">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50 animate-pulse" />
+              <FileText className="w-3.5 h-3.5 text-purple-700" />
+              <span className="font-semibold text-[#1E1B4B] max-w-[220px] sm:max-w-md truncate">
+                {selectedDoc.file_name}
+              </span>
+              <span className="text-slate-400">•</span>
+              <span className="text-slate-600 text-[11px] font-mono">
+                {selectedDoc.total_chunks} chunks
+              </span>
+            </div>
+          ) : (
+            <button
+              onClick={onToggleTrainingData}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-100/70 hover:bg-purple-100 border border-purple-200 text-xs font-semibold text-purple-900 transition shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+              <span>Select or Upload PDF in Training Data</span>
+            </button>
+          )}
         </div>
 
-        <button
-          onClick={handleNewChat}
-          title="Start new conversation"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition text-[11px]"
-        >
-          <RotateCcw className="w-3 h-3" /> New Chat
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Mode Badge */}
+          <div className="hidden sm:inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/50 border border-white/70 text-[11px] font-medium text-slate-700 shadow-sm">
+            {activeMode === "fast" && <Zap className="w-3 h-3 text-amber-500" />}
+            {activeMode === "indepth" && <Lightbulb className="w-3 h-3 text-purple-600" />}
+            {activeMode === "hybrid" && <GitFork className="w-3 h-3 text-indigo-500" />}
+            {activeMode === "holistic" && <Box className="w-3 h-3 text-cyan-600" />}
+            <span className="capitalize">{activeMode} Mode</span>
+          </div>
+
+          {/* Reset / New Chat */}
+          {hasMessages && (
+            <button
+              onClick={handleNewChat}
+              title="Start a new chat session"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 hover:bg-white/90 border border-white/80 text-xs font-medium text-slate-700 hover:text-purple-900 transition shadow-sm"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-purple-600" />
+              <span>New Chat</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Messages Stream */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto py-12">
-            <div className="w-12 h-12 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center mx-auto mb-3 text-teal-400">
-              <Sparkles className="w-6 h-6" />
+      {/* Main Big-Screen Workspace */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 scroll-smooth z-10 flex flex-col items-center">
+        {!hasMessages ? (
+          /* EMPTY STATE / WELCOME HERO (Centered on the big screen) */
+          <div className="my-auto max-w-2xl w-full text-center animate-in fade-in duration-300 py-8">
+            {/* Centered Glowing Emblem */}
+            <div className="w-16 h-16 rounded-full bg-white/70 border border-white/80 shadow-omago-pill flex items-center justify-center mx-auto mb-4 backdrop-blur-xl">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-600 via-fuchsia-500 to-indigo-500 flex items-center justify-center shadow-omago-orb">
+                <div className="w-0 h-0 border-y-[6px] border-y-transparent border-l-[9px] border-l-white ml-0.5" />
+              </div>
             </div>
-            <h4 className="text-sm font-bold text-white mb-1">
-              Ask anything from {selectedDoc.file_name}
-            </h4>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Exact matches and semantically identical queries use 0 tokens from Redis cache.
+
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#1E1B4B] mb-2">
+              Hi, I'm Advisor.ai
+            </h1>
+            <p className="text-sm text-slate-500 font-normal mb-8 max-w-md mx-auto">
+              {selectedDoc
+                ? `Ready to query ${selectedDoc.file_name}. Ask questions and get verified page citations.`
+                : "How can I help you today? Upload a PDF document to ground all answers."}
             </p>
+
+            {/* Central Frosted Island Input Box */}
+            <div className="w-full bg-white/50 hover:bg-white/65 backdrop-blur-2xl border border-white/80 rounded-3xl p-5 shadow-omago-glass transition-all duration-200 mb-6 text-left relative group">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                disabled={loading}
+                rows={2}
+                placeholder={
+                  selectedDoc
+                    ? `Ask anything from ${selectedDoc.file_name}...`
+                    : "Ask anything... (Select or upload a PDF first)"
+                }
+                className="w-full bg-transparent resize-none text-sm text-[#1E1B4B] placeholder:text-slate-400 focus:outline-none leading-relaxed"
+              />
+
+              <div className="flex items-center justify-between pt-3 mt-2 border-t border-white/40">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={onOpenUpload}
+                    title="Upload PDF Document"
+                    className="p-2 rounded-full bg-white/60 hover:bg-white/90 text-slate-600 hover:text-purple-700 transition shadow-sm border border-white/80"
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSend(undefined, input)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 hover:bg-white/90 border border-white/80 text-xs text-slate-700 font-medium transition shadow-sm"
+                  >
+                    <Search className="w-3 h-3 text-purple-600" />
+                    <span>Deep search</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSend(undefined, input)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 hover:bg-white/90 border border-white/80 text-xs text-slate-700 font-medium transition shadow-sm"
+                  >
+                    <span>Search</span>
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => handleSend()}
+                  disabled={loading || !input.trim() || !selectedDoc}
+                  className="h-9 w-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white flex items-center justify-center transition shadow-md shadow-purple-500/25 disabled:opacity-40"
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Mode Filter Pills */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
+              <button
+                type="button"
+                onClick={() => setActiveMode("fast")}
+                className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition shadow-sm backdrop-blur-md ${
+                  activeMode === "fast"
+                    ? "bg-white/90 text-purple-950 border border-purple-200 shadow-purple-500/10 font-semibold"
+                    : "bg-white/40 hover:bg-white/60 text-slate-600 border border-white/60"
+                }`}
+              >
+                <Zap className="w-3 h-3 text-amber-500" />
+                <span>Fast</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMode("indepth")}
+                className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition shadow-sm backdrop-blur-md ${
+                  activeMode === "indepth"
+                    ? "bg-white/90 text-purple-950 border border-purple-200 shadow-purple-500/10 font-semibold"
+                    : "bg-white/40 hover:bg-white/60 text-slate-600 border border-white/60"
+                }`}
+              >
+                <Lightbulb className="w-3 h-3 text-purple-600" />
+                <span>In-depth</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMode("hybrid")}
+                className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition shadow-sm backdrop-blur-md ${
+                  activeMode === "hybrid"
+                    ? "bg-white/90 text-purple-950 border border-purple-200 shadow-purple-500/10 font-semibold"
+                    : "bg-white/40 hover:bg-white/60 text-slate-600 border border-white/60"
+                }`}
+              >
+                <GitFork className="w-3 h-3 text-indigo-500" />
+                <span>Hybrid</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMode("holistic")}
+                className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition shadow-sm backdrop-blur-md ${
+                  activeMode === "holistic"
+                    ? "bg-white/90 text-purple-950 border border-purple-200 shadow-purple-500/10 font-semibold"
+                    : "bg-white/40 hover:bg-white/60 text-slate-600 border border-white/60"
+                }`}
+              >
+                <Box className="w-3 h-3 text-cyan-600" />
+                <span>Holistic</span>
+              </button>
+            </div>
+
+            {/* Quick Starter Prompts */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+              <button
+                onClick={() => handleSend(undefined, "Summarize key architecture and main points")}
+                className="p-3.5 rounded-2xl bg-white/40 hover:bg-white/70 border border-white/70 text-xs text-[#1E1B4B] transition shadow-sm flex items-center justify-between group"
+              >
+                <span className="font-medium text-slate-700 group-hover:text-purple-900">
+                  Summarize key points & architecture ✨
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-purple-400 group-hover:translate-x-0.5 transition" />
+              </button>
+
+              <button
+                onClick={() => handleSend(undefined, "What are the core technical constraints and security requirements?")}
+                className="p-3.5 rounded-2xl bg-white/40 hover:bg-white/70 border border-white/70 text-xs text-[#1E1B4B] transition shadow-sm flex items-center justify-between group"
+              >
+                <span className="font-medium text-slate-700 group-hover:text-purple-900">
+                  Inspect constraints & security requirements 💬
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-purple-400 group-hover:translate-x-0.5 transition" />
+              </button>
+            </div>
           </div>
         ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-3 max-w-3xl ${
-                msg.sender === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
-              }`}
-            >
+          /* CONVERSATION STREAM (Full big-screen central column) */
+          <div className="max-w-3xl w-full space-y-6 pb-6">
+            {messages.map((msg) => (
               <div
-                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                  msg.sender === "user"
-                    ? "bg-blue-600 text-white"
-                    : msg.source === "guardrail"
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                    : "bg-teal-500/20 text-teal-300 border border-teal-500/30"
-                }`}
+                key={msg.id}
+                className={`flex gap-3.5 items-start ${
+                  msg.sender === "user" ? "flex-row-reverse" : "flex-row"
+                } animate-in fade-in duration-200`}
               >
+                {/* Avatar */}
                 {msg.sender === "user" ? (
-                  <User className="w-4 h-4" />
-                ) : msg.source === "guardrail" ? (
-                  <ShieldAlert className="w-4 h-4" />
-                ) : (
-                  <Bot className="w-4 h-4" />
-                )}
-              </div>
-
-              <div
-                className={`rounded-2xl p-4 text-sm leading-relaxed ${
-                  msg.sender === "user"
-                    ? "bg-blue-600 text-white rounded-tr-none"
-                    : msg.status === "queued_for_email"
-                    ? "bg-amber-950/30 border border-amber-500/40 text-amber-200 rounded-tl-none shadow-sm"
-                    : "bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-none shadow-sm"
-                }`}
-              >
-                {msg.status === "queued_for_email" ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-amber-400 text-sm">
-                      <Clock className="w-4 h-4 text-amber-400" />
-                      <span>⏳ AI Model Busy - Answer will be delivered via Email</span>
-                    </div>
-                    <p className="text-xs text-amber-200/90 leading-relaxed m-0">
-                      You can safely close the chat. The answer will be sent to your email and saved here.
-                    </p>
+                  <div className="w-8 h-8 rounded-full bg-[#1E1B4B] text-white flex items-center justify-center text-xs font-bold shadow-sm shrink-0">
+                    U
                   </div>
                 ) : (
-                  <>
-                    <p className="whitespace-pre-line">{msg.text}</p>
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 via-fuchsia-500 to-indigo-500 flex items-center justify-center shadow-omago-orb shrink-0 mt-0.5">
+                    <div className="w-0 h-0 border-y-[4px] border-y-transparent border-l-[6px] border-l-white ml-0.5" />
+                  </div>
+                )}
 
-                    {/* Citations Pills */}
-                    {msg.citations && msg.citations.length > 0 && (
-                      <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] text-slate-500 font-semibold mr-1">
-                          Citations:
-                        </span>
-                        {msg.citations.map((c, i) => (
-                          <span
-                            key={i}
-                            className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-slate-800 text-teal-300 border border-slate-700/80 font-mono"
-                          >
-                            Page {c.page_no}
+                {/* Message Bubble Card */}
+                <div
+                  className={`relative group ${
+                    msg.sender === "user"
+                      ? "max-w-[85%] bg-[#1E1B4B] text-white rounded-3xl rounded-tr-sm px-5 py-3.5 shadow-md text-sm leading-relaxed"
+                      : "flex-1 bg-white/70 hover:bg-white/80 backdrop-blur-2xl border border-white/90 rounded-3xl rounded-tl-sm p-5 shadow-omago-card text-[#1E1B4B] text-sm leading-relaxed"
+                  }`}
+                >
+                  {/* Assistant Header: Name + Timestamp + Copy Button */}
+                  {msg.sender === "assistant" && (
+                    <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-purple-100/70">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-purple-950">Advisor.ai</span>
+                        {msg.timestamp && (
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {msg.timestamp}
                           </span>
-                        ))}
+                        )}
                       </div>
-                    )}
-                  </>
-                )}
 
-                {/* Performance & Source Badges */}
-                {msg.sender === "assistant" && (
-                  <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex flex-wrap items-center gap-2.5 text-[10px] font-mono text-slate-400">
-                    {msg.cacheHit ? (
-                      <span className="flex items-center gap-1 text-teal-400 font-semibold bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded">
-                        <Zap className="w-3 h-3" />
-                        {msg.source === "exact"
-                          ? "By Cache (Exact)"
-                          : "By Cache (Semantic)"}
-                      </span>
-                    ) : msg.status === "queued_for_email" ? (
-                      <span className="flex items-center gap-1 text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
-                        <Clock className="w-3 h-3" /> Background Email Queue
-                      </span>
-                    ) : msg.source === "guardrail" ? (
-                      <span className="flex items-center gap-1 text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
-                        <ShieldAlert className="w-3 h-3" /> Input Guardrail Blocked
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-blue-400 font-semibold bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded">
-                        <Cpu className="w-3 h-3" /> Grok LLM
-                      </span>
-                    )}
+                      <button
+                        onClick={() => handleCopy(msg.text, msg.id)}
+                        title="Copy answer"
+                        className="p-1 rounded-md text-slate-400 hover:text-purple-700 hover:bg-white/60 transition flex items-center gap-1 text-[11px]"
+                      >
+                        {copiedId === msg.id ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-emerald-600 text-[10px] font-medium">Copied</span>
+                          </>
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  )}
 
-                    <span>Tokens: {msg.tokensUsed ?? 0}</span>
-                    {msg.latencyMs !== undefined && (
-                      <span className="flex items-center gap-1 text-slate-500">
-                        <Clock className="w-2.5 h-2.5" />
-                        {msg.latencyMs}ms
+                  {/* Body Text */}
+                  <p className="whitespace-pre-line m-0 font-normal">{msg.text}</p>
+
+                  {/* Citations Tag Pills */}
+                  {msg.citations && msg.citations.length > 0 && (
+                    <div className="mt-3.5 pt-3 border-t border-purple-100 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] font-semibold text-slate-500 mr-1">
+                        Citations:
                       </span>
-                    )}
-                  </div>
-                )}
+                      {msg.citations.map((c, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100/80 border border-purple-300 text-purple-900 text-xs font-mono font-medium shadow-sm hover:bg-purple-200/80 transition cursor-default"
+                        >
+                          <FileText className="w-3 h-3 text-purple-600" />
+                          <span>Page {c.page_no}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Assistant Meta / Cache / Tokens Footer */}
+                  {msg.sender === "assistant" && (
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-mono text-slate-500 flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        {msg.cacheHit ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold bg-emerald-100/80 border border-emerald-200 px-2.5 py-0.5 rounded-full shadow-sm">
+                            <Zap className="w-3 h-3" />
+                            <span>By Cache (0-Token)</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-purple-700 font-medium bg-purple-50 px-2 py-0.5 rounded-full">
+                            <span>Grok Free Tier</span>
+                          </span>
+                        )}
+
+                        {msg.tokensUsed !== undefined && (
+                          <span>{msg.tokensUsed} tokens</span>
+                        )}
+                      </div>
+
+                      {msg.latencyMs !== undefined && (
+                        <span className="text-[10px] text-slate-400">
+                          {msg.latencyMs} ms
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
-        )}
+            ))}
 
-        {/* Typing indicator */}
-        {loading && (
-          <div className="flex gap-3 max-w-3xl mr-auto">
-            <div className="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-300 border border-teal-500/30 flex items-center justify-center shrink-0">
-              <Bot className="w-4 h-4" />
-            </div>
-            <div className="rounded-2xl rounded-tl-none p-4 bg-slate-900 border border-slate-800 text-slate-400 text-sm flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-teal-400" />
-              <span>Checking cache & generating response...</span>
-            </div>
+            {/* Loading Indicator in conversation stream */}
+            {loading && (
+              <div className="flex gap-3.5 items-start animate-in fade-in duration-150">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 via-fuchsia-500 to-indigo-500 flex items-center justify-center shadow-omago-orb shrink-0 mt-0.5">
+                  <div className="w-0 h-0 border-y-[4px] border-y-transparent border-l-[6px] border-l-white ml-0.5" />
+                </div>
+
+                <div className="bg-white/70 backdrop-blur-2xl border border-white/80 rounded-3xl rounded-tl-sm p-4 shadow-omago-card text-[#1E1B4B] text-xs flex items-center gap-2.5">
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                  <span className="text-purple-950 font-medium">
+                    Advisor.ai is searching documents & verifying page citations...
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form Bar */}
-      <div className="p-4 bg-slate-900/80 border-t border-slate-800 backdrop-blur-md">
-        <form
-          onSubmit={handleSend}
-          className="max-w-4xl mx-auto flex items-center gap-2"
-        >
-          <div className="relative flex-1">
-            <input
-              type="text"
+      {/* DOCKED BOTTOM INPUT BAR (When conversation is in progress on the big screen) */}
+      {hasMessages && (
+        <div className="max-w-3xl w-full mx-auto px-4 pb-5 pt-2 z-20 shrink-0">
+          <div className="bg-white/60 hover:bg-white/75 backdrop-blur-3xl border border-white/80 rounded-3xl p-3.5 shadow-omago-glass transition-all duration-200">
+            <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               disabled={loading}
-              placeholder={`Ask a question from ${selectedDoc.file_name}...`}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-teal-500 transition disabled:opacity-50"
+              rows={1}
+              placeholder={
+                selectedDoc
+                  ? `Ask follow-up from ${selectedDoc.file_name}...`
+                  : "Type follow-up question..."
+              }
+              className="w-full bg-transparent resize-none text-sm text-[#1E1B4B] placeholder:text-slate-400 focus:outline-none px-2 pt-1"
             />
+
+            <div className="flex items-center justify-between pt-2.5 mt-1 border-t border-white/40">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={onOpenUpload}
+                  title="Upload / Attach PDF Document"
+                  className="p-1.5 rounded-full bg-white/70 hover:bg-white text-slate-600 hover:text-purple-700 transition shadow-sm border border-white/80"
+                >
+                  <Paperclip className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSend(undefined, input)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/70 hover:bg-white border border-white/80 text-xs text-slate-700 font-medium transition shadow-sm"
+                >
+                  <Search className="w-3 h-3 text-purple-600" />
+                  <span>Deep search</span>
+                </button>
+
+                {/* Quick Mode Switcher in bottom bar */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveMode((prev) =>
+                      prev === "fast"
+                        ? "indepth"
+                        : prev === "indepth"
+                        ? "hybrid"
+                        : prev === "hybrid"
+                        ? "holistic"
+                        : "fast"
+                    )
+                  }
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/60 hover:bg-white/90 border border-white/80 text-xs text-slate-700 font-medium shadow-sm transition"
+                >
+                  {activeMode === "fast" && <Zap className="w-3 h-3 text-amber-500" />}
+                  {activeMode === "indepth" && <Lightbulb className="w-3 h-3 text-purple-600" />}
+                  {activeMode === "hybrid" && <GitFork className="w-3 h-3 text-indigo-500" />}
+                  {activeMode === "holistic" && <Box className="w-3 h-3 text-cyan-600" />}
+                  <span className="capitalize">{activeMode}</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => handleSend()}
+                disabled={loading || !input.trim() || !selectedDoc}
+                className="h-8 w-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white flex items-center justify-center transition shadow-md shadow-purple-500/25 disabled:opacity-40"
+              >
+                {loading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                ) : (
+                  <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                )}
+              </button>
+            </div>
           </div>
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="p-3 rounded-xl bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white shadow-md shadow-teal-500/20 transition flex items-center justify-center shrink-0 disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
-        </form>
-      </div>
-    </section>
+
+          <p className="text-[10px] text-center text-slate-400 mt-2 font-normal">
+            Advisor.ai answers strictly from grounded PDF context with verified citations.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

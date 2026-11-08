@@ -7,7 +7,17 @@ import PdfList from "@/components/PdfList";
 import ChatBox from "@/components/ChatBox";
 import UploadModal from "@/components/UploadModal";
 import { getMe, getDocuments, logout, DocumentItem } from "@/lib/api";
-import { ArrowLeft, Cpu, Database, Mail, LogOut, User } from "lucide-react";
+import {
+  Search,
+  Bell,
+  Sparkles,
+  Database,
+  Layers,
+  Code,
+  Users,
+  LogOut,
+  ChevronLeft,
+} from "lucide-react";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -15,6 +25,7 @@ export default function ChatPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -56,7 +67,7 @@ export default function ChatPage() {
     }
   }, [user, fetchDocs]);
 
-  // Auto-polling when documents are in 'processing' or 'uploading' status
+  // Auto-polling for processing documents
   useEffect(() => {
     const hasPending = documents.some(
       (d) => d.status === "processing" || d.status === "uploading"
@@ -85,74 +96,135 @@ export default function ChatPage() {
     (documents.length > 0 ? documents[0] : null);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-slate-950 overflow-hidden">
-      {/* Top Header with Status Indicators & User Profile */}
-      <header className="h-14 border-b border-slate-800 bg-slate-900/90 px-6 flex items-center justify-between z-20">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-tr from-blue-600 to-teal-400 flex items-center justify-center font-bold text-white text-xs">
-              TS
-            </div>
-            <span className="font-bold text-sm text-white hidden sm:inline">
-              TokenSaver <span className="text-teal-400">RAG</span>
-            </span>
-          </div>
-        </div>
-
-        {/* System Badges Bar */}
-        <div className="flex items-center gap-2 sm:gap-3 text-xs">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/15 border border-teal-500/30 text-teal-300 font-medium">
-            <Database className="w-3.5 h-3.5" />
-            Semantic Cache: <span className="font-bold">ON</span>
-          </span>
-
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 font-medium">
-            <Cpu className="w-3.5 h-3.5" />
-            Local Embedding: <span className="font-bold">ON</span>
-          </span>
-
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-medium hidden md:inline-flex">
-            <Mail className="w-3.5 h-3.5" />
-            Callback: <span className="font-bold">Email</span>
-          </span>
-        </div>
-
-        {/* User Account & Logout */}
+    <div className="h-screen w-screen flex flex-col overflow-hidden font-sans">
+      {/* Top Navigation Bar (Exact replica from the screenshot) */}
+      <header className="h-16 px-6 sm:px-8 flex items-center justify-between z-30 shrink-0 border-b border-white/50 bg-white/30 backdrop-blur-2xl">
+        {/* Left: Glowing Orb Logo + Advisor.ai */}
         <div className="flex items-center gap-3">
-          {user && (
-            <div className="hidden lg:flex items-center gap-2 text-xs text-slate-400 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800">
-              <User className="w-3.5 h-3.5 text-teal-400" />
-              <span className="truncate max-w-[150px]">{user.email}</span>
+          <Link href="/chat" className="flex items-center gap-2.5 group">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 via-fuchsia-500 to-indigo-500 flex items-center justify-center shadow-omago-orb group-hover:scale-105 transition-transform">
+              <div className="w-0 h-0 border-y-[5px] border-y-transparent border-l-[8px] border-l-white ml-0.5" />
             </div>
-          )}
+            <span className="text-lg font-bold tracking-tight text-[#1E1B4B]">
+              Advisor.ai
+            </span>
+          </Link>
+        </div>
+
+        {/* Center: Navigation Links */}
+        <nav className="hidden md:flex items-center gap-1.5 text-xs font-medium">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className={`px-3.5 py-1.5 rounded-full transition flex items-center gap-1.5 ${
+              isSidebarOpen
+                ? "bg-white/80 text-purple-900 shadow-sm border border-purple-200"
+                : "text-slate-600 hover:text-purple-900 hover:bg-white/50"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-slate-500" />
+            <span>Training Data</span>
+            {documents.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 text-[10px] font-mono ml-0.5">
+                {documents.length}
+              </span>
+            )}
+          </button>
+
+          <Link
+            href="/chat"
+            className="px-3.5 py-1.5 rounded-full bg-white/80 text-purple-950 font-semibold shadow-sm border border-purple-200/80 flex items-center gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            <span>Instant Chat</span>
+          </Link>
 
           <button
-            onClick={handleLogout}
-            title="Sign out"
-            className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition"
+            onClick={() => alert("Advisor.ai Chatbot Embed widget code: <script src='http://localhost:3000/embed.js'></script>")}
+            className="px-3.5 py-1.5 rounded-full text-slate-600 hover:text-purple-900 hover:bg-white/50 transition flex items-center gap-1.5"
           >
-            <LogOut className="w-4 h-4" />
+            <Code className="w-3.5 h-3.5 text-slate-500" />
+            <span>Embed Chatbot</span>
           </button>
+
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="px-3.5 py-1.5 rounded-full text-slate-600 hover:text-purple-900 hover:bg-white/50 transition flex items-center gap-1.5"
+          >
+            <Users className="w-3.5 h-3.5 text-slate-500" />
+            <span>Leads</span>
+          </button>
+        </nav>
+
+        {/* Right: Search Bar, Notifications, User Avatar */}
+        <div className="flex items-center gap-2.5">
+          {/* Frosted Search Pill */}
+          <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/60 border border-white/80 text-xs text-slate-500 shadow-sm backdrop-blur-md w-44">
+            <Search className="w-3.5 h-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="w-full bg-transparent text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none"
+            />
+          </div>
+
+          {/* Notification Bell */}
+          <button
+            title="Notifications"
+            className="h-8 w-8 rounded-full bg-white/60 hover:bg-white/90 border border-white/80 text-slate-600 hover:text-purple-800 flex items-center justify-center transition shadow-sm relative"
+          >
+            <Bell className="w-3.5 h-3.5" />
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-purple-600" />
+          </button>
+
+          {/* User Profile Avatar */}
+          {user && (
+            <div className="flex items-center gap-2 pl-1">
+              <div
+                title={user.email}
+                className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 border-2 border-white flex items-center justify-center text-xs font-bold text-white shadow-sm cursor-pointer"
+              >
+                {user.email.charAt(0).toUpperCase()}
+              </div>
+
+              <button
+                onClick={handleLogout}
+                title="Sign out"
+                className="p-1.5 rounded-full text-slate-400 hover:text-red-600 hover:bg-white/60 transition"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Main Workspace: Left PdfList + Right ChatBox */}
-      <main className="flex-1 flex overflow-hidden">
-        <PdfList
-          documents={documents}
-          loading={loading}
-          selectedDocId={selectedDocId}
-          onSelectDoc={(id) => setSelectedDocId(id)}
+      {/* Main Workspace Canvas with Slide-Over Training Data Sidebar */}
+      <main className="flex-1 flex overflow-hidden relative">
+        {/* Slide-Over Training Data Sidebar */}
+        {isSidebarOpen && (
+          <div className="absolute inset-y-0 left-0 w-80 z-30 shadow-2xl animate-in slide-in-from-left duration-200">
+            <PdfList
+              documents={documents}
+              loading={loading}
+              selectedDocId={selectedDocId}
+              onSelectDoc={(id) => {
+                setSelectedDocId(id);
+                setIsSidebarOpen(false);
+              }}
+              onOpenUpload={() => setIsUploadOpen(true)}
+              onRefresh={fetchDocs}
+              onCloseSidebar={() => setIsSidebarOpen(false)}
+            />
+          </div>
+        )}
+
+        {/* Central Chat Canvas */}
+        <ChatBox
+          selectedDoc={selectedDoc}
           onOpenUpload={() => setIsUploadOpen(true)}
-          onRefresh={fetchDocs}
+          onToggleTrainingData={() => setIsSidebarOpen(!isSidebarOpen)}
+          activeDocCount={documents.length}
         />
-        <ChatBox selectedDoc={selectedDoc} />
       </main>
 
       {/* Upload Modal */}

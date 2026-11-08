@@ -174,7 +174,7 @@ async def process_single_job(
 
 async def run_email_worker():
     """Continuous background worker loop that monitors Redis queue."""
-    logger.info("Starting TokenSaver RAG Email Callback Worker...")
+    logger.info("Starting Advisor.ai Email Callback Worker...")
     while _worker_running:
         try:
             # Poll Redis queue with 2s timeout

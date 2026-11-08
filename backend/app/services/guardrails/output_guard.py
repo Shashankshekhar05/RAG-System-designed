@@ -19,6 +19,8 @@ FALLBACK_PHRASES = [
 LEAK_PATTERNS = [
     r"tu\s+tokensaver\s+rag\s+hai",
     r"you\s+are\s+tokensaver\s+rag",
+    r"tu\s+advisor(\.ai)?\s+hai",
+    r"you\s+are\s+advisor(\.ai)?",
     r"system\s*prompt",
     r"grok_api_key",
     r"\bsk-[a-zA-Z0-9]{20,}\b",

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TokenSaver RAG | Zero Cost Local AI",
-  description: "Zero cloud cost local RAG with semantic cache, hybrid search & email callback.",
+  title: "Advisor.ai | Intelligent Document Teammate",
+  description: "Next-generation AI document copilot with local embeddings, semantic cache, and verified page citations.",
 };
 
 export default function RootLayout({
@@ -12,11 +12,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-teal-500 selection:text-white">
+    <html lang="en">
+      <body className="min-h-screen text-[#1E1B4B] font-sans antialiased selection:bg-purple-500/25 selection:text-purple-950">
         {children}
       </body>
     </html>
   );
 }
-

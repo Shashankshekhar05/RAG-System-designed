@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { X, UploadCloud, FileText, AlertCircle, Loader2 } from "lucide-react";
+import { X, UploadCloud, FileText, AlertCircle, Loader2, Sparkles } from "lucide-react";
 import { uploadPdf } from "@/lib/api";
 
 interface UploadModalProps {
@@ -27,11 +27,11 @@ export default function UploadModal({
     if (e.target.files && e.target.files[0]) {
       const selected = e.target.files[0];
       if (!selected.name.toLowerCase().endsWith(".pdf")) {
-        setError("Only PDF files are allowed");
+        setError("Only PDF files are supported");
         return;
       }
       if (selected.size > 20 * 1024 * 1024) {
-        setError("File too large (Max 20MB)");
+        setError("File size exceeds 20MB limit");
         return;
       }
       setFile(selected);
@@ -40,7 +40,7 @@ export default function UploadModal({
 
   const handleSubmit = async () => {
     if (!file) {
-      setError("Please select a PDF file first");
+      setError("Please select a PDF document first");
       return;
     }
 
@@ -53,30 +53,42 @@ export default function UploadModal({
       onUploadSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || "Failed to upload PDF");
+      setError(err.message || "Failed to upload document");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl relative animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-purple-950/20 backdrop-blur-md animate-in fade-in duration-150 font-sans">
+      <div className="w-full max-w-lg bg-white/90 backdrop-blur-3xl border border-white/80 rounded-3xl p-7 shadow-[0_25px_60px_rgba(139,92,246,0.18)] relative">
+        {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white"
+          disabled={loading}
+          className="absolute top-5 right-5 p-1 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
-        <h3 className="text-lg font-bold text-white mb-1">Upload PDF Document</h3>
-        <p className="text-xs text-slate-400 mb-6">
-          Document will be parsed, cleaned, chunked into 800-char pieces, and indexed locally into Qdrant.
-        </p>
+        {/* Modal Header */}
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-omago-orb shrink-0">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-[#1E1B4B] tracking-tight">
+              Add Training Document
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              Chunked into 500-char pieces & indexed into Qdrant for Advisor.ai
+            </p>
+          </div>
+        </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="mt-4 p-3 rounded-2xl bg-red-50 border border-red-200 text-red-600 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
             <span>{error}</span>
           </div>
         )}
@@ -89,49 +101,56 @@ export default function UploadModal({
           className="hidden"
         />
 
+        {/* Drag & Drop Surface */}
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-slate-700 hover:border-teal-500 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition bg-slate-950/50"
+          className="mt-5 border-2 border-dashed border-purple-200 hover:border-purple-400 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 bg-purple-50/40 hover:bg-purple-50/70 group"
         >
-          <UploadCloud className="w-12 h-12 text-teal-400 mb-3" />
-          <p className="text-sm font-medium text-slate-200 mb-1">
-            Click to select or drag & drop a PDF
+          <div className="w-12 h-12 rounded-2xl bg-white border border-purple-100 shadow-sm flex items-center justify-center text-purple-600 group-hover:scale-105 transition mb-3">
+            <UploadCloud className="w-6 h-6" />
+          </div>
+          <p className="text-xs font-semibold text-[#1E1B4B] mb-1">
+            Click to browse or drop PDF here
           </p>
-          <p className="text-xs text-slate-500">Max file size 20MB (PDF only)</p>
+          <p className="text-[11px] text-slate-400">Maximum size 20MB • PDF format only</p>
         </div>
 
+        {/* Selected File Card */}
         {file && (
-          <div className="mt-4 flex items-center gap-3 p-3 bg-slate-950 border border-slate-800 rounded-xl">
-            <FileText className="w-5 h-5 text-teal-400 shrink-0" />
+          <div className="mt-4 flex items-center gap-3 p-3 bg-purple-50/60 border border-purple-100 rounded-2xl">
+            <div className="h-8 w-8 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shrink-0">
+              <FileText className="w-4 h-4" />
+            </div>
             <div className="flex-1 text-left truncate">
-              <div className="text-xs font-semibold text-slate-200 truncate">
+              <div className="text-xs font-semibold text-[#1E1B4B] truncate">
                 {file.name}
               </div>
-              <div className="text-[10px] text-slate-500 font-mono">
+              <div className="text-[10px] text-slate-400 font-mono">
                 {(file.size / (1024 * 1024)).toFixed(2)} MB
               </div>
             </div>
-            <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 font-mono">
+            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono font-medium">
               Ready
             </span>
           </div>
         )}
 
-        <div className="mt-6 flex justify-end gap-3">
+        {/* Actions */}
+        <div className="mt-6 flex items-center justify-end gap-2.5 pt-4 border-t border-purple-100">
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white rounded-lg disabled:opacity-50"
+            className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-800 rounded-full hover:bg-slate-100 transition disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading || !file}
-            className="px-5 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50"
+            className="px-5 py-2 text-xs font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-full transition-all shadow-md shadow-purple-500/20 flex items-center gap-2 disabled:opacity-40"
           >
-            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {loading ? "Uploading & Enqueuing..." : "Start Ingestion"}
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
+            <span>{loading ? "Ingesting Document..." : "Start Ingestion"}</span>
           </button>
         </div>
       </div>

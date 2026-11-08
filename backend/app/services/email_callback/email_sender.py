@@ -26,7 +26,7 @@ def send_email(to_email: str, subject: str, html_body: str) -> bool:
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = f"TokenSaver RAG <{smtp_user}>"
+        msg["From"] = f"Advisor.ai <{smtp_user}>"
         msg["To"] = to_email
 
         html_part = MIMEText(html_body, "html")

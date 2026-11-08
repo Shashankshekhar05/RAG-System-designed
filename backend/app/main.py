@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown logic
-    logger.info("Shutting down TokenSaver RAG backend...")
+    logger.info("Shutting down Advisor.ai backend...")
     stop_worker()
     if worker_task:
         worker_task.cancel()
@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="TokenSaver RAG API",
+    title="Advisor.ai API",
     version="1.0.0",
     description="Zero-cost, local-first RAG with semantic caching, hybrid search, and async email callback.",
     lifespan=lifespan

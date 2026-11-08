@@ -1,7 +1,7 @@
 from typing import List
 
-EMAIL_SUCCESS_SUBJECT = "TokenSaver RAG - Tumhare Question Ka Answer Aa Gaya!"
-EMAIL_FAILURE_SUBJECT = "TokenSaver RAG - Update on your question"
+EMAIL_SUCCESS_SUBJECT = "Advisor.ai - Tumhare Question Ka Answer Aa Gaya!"
+EMAIL_FAILURE_SUBJECT = "Advisor.ai - Update on your question"
 
 
 def build_answer_email(
@@ -29,7 +29,7 @@ def build_answer_email(
     <!-- Header -->
     <div style="border-bottom: 1px solid #1e293b; padding-bottom: 20px; margin-bottom: 24px;">
       <h1 style="color: #14b8a6; font-size: 22px; margin: 0 0 6px 0;">Tumhara Answer Ready Hai!</h1>
-      <p style="color: #94a3b8; font-size: 13px; margin: 0;">TokenSaver RAG ne tumhara background query fulfill kar diya hai.</p>
+      <p style="color: #94a3b8; font-size: 13px; margin: 0;">Advisor.ai ne tumhara background query fulfill kar diya hai.</p>
     </div>
 
     <!-- Question -->
@@ -57,7 +57,7 @@ def build_answer_email(
 
     <!-- Footer -->
     <div style="border-top: 1px solid #1e293b; padding-top: 20px; text-align: center; font-size: 11px; color: #64748b;">
-      <p style="margin: 0 0 4px 0;">TokenSaver RAG - Zero-Cost Local PDF Assistant</p>
+      <p style="margin: 0 0 4px 0;">Advisor.ai - Intelligent Document Assistant</p>
       <p style="margin: 0;">This answer has been automatically saved to your web chat.</p>
     </div>
   </div>
