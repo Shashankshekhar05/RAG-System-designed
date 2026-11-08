@@ -44,6 +44,54 @@ interface ChatBoxProps {
   activeDocCount?: number;
 }
 
+function renderFormattedMessage(text: string) {
+  const lines = text.split("\n");
+
+  return (
+    <div className="space-y-1.5 leading-relaxed text-sm">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} className="h-1.5" />;
+        }
+
+        // Check for bullet lines starting with -, *, or •
+        const isBullet = /^[-\*•]\s+/.test(trimmed);
+        const content = isBullet ? trimmed.replace(/^[-\*•]\s+/, "") : trimmed;
+
+        // Parse **bold** markdown parts and filter out any raw asterisks
+        const parts = content.split(/(\*\*.*?\*\*)/g);
+        const parsedContent = parts.map((part, pIdx) => {
+          if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
+            return (
+              <strong key={pIdx} className="font-semibold text-purple-950">
+                {part.slice(2, -2).replace(/\*/g, "")}
+              </strong>
+            );
+          }
+          // Remove stray asterisks from ordinary text
+          return part.replace(/\*/g, "");
+        });
+
+        if (isBullet) {
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-2 shrink-0" />
+              <span className="flex-1">{parsedContent}</span>
+            </div>
+          );
+        }
+
+        return (
+          <p key={idx} className="m-0">
+            {parsedContent}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ChatBox({
   selectedDoc,
   onOpenUpload,
@@ -200,56 +248,6 @@ export default function ChatBox({
       <div className="absolute top-[15%] left-1/2 -translate-x-1/2 w-[750px] h-[400px] bg-purple-300/30 rounded-full blur-[110px] pointer-events-none" />
       <div className="absolute top-[45%] right-[5%] w-[500px] h-[400px] bg-pink-300/25 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[5%] left-[5%] w-[450px] h-[350px] bg-indigo-300/20 rounded-full blur-[90px] pointer-events-none" />
-
-      {/* Top Status Bar (Visible when conversation is active or document is connected) */}
-      <div className="px-6 py-3 border-b border-white/40 bg-white/20 backdrop-blur-md flex items-center justify-between z-20 shrink-0">
-        <div className="flex items-center gap-2.5">
-          {selectedDoc ? (
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/60 border border-white/80 shadow-sm text-xs backdrop-blur-md">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50 animate-pulse" />
-              <FileText className="w-3.5 h-3.5 text-purple-700" />
-              <span className="font-semibold text-[#1E1B4B] max-w-[220px] sm:max-w-md truncate">
-                {selectedDoc.file_name}
-              </span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-600 text-[11px] font-mono">
-                {selectedDoc.total_chunks} chunks
-              </span>
-            </div>
-          ) : (
-            <button
-              onClick={onToggleTrainingData}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-100/70 hover:bg-purple-100 border border-purple-200 text-xs font-semibold text-purple-900 transition shadow-sm"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-              <span>Select or Upload PDF in Training Data</span>
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Mode Badge */}
-          <div className="hidden sm:inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/50 border border-white/70 text-[11px] font-medium text-slate-700 shadow-sm">
-            {activeMode === "fast" && <Zap className="w-3 h-3 text-amber-500" />}
-            {activeMode === "indepth" && <Lightbulb className="w-3 h-3 text-purple-600" />}
-            {activeMode === "hybrid" && <GitFork className="w-3 h-3 text-indigo-500" />}
-            {activeMode === "holistic" && <Box className="w-3 h-3 text-cyan-600" />}
-            <span className="capitalize">{activeMode} Mode</span>
-          </div>
-
-          {/* Reset / New Chat */}
-          {hasMessages && (
-            <button
-              onClick={handleNewChat}
-              title="Start a new chat session"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 hover:bg-white/90 border border-white/80 text-xs font-medium text-slate-700 hover:text-purple-900 transition shadow-sm"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-purple-600" />
-              <span>New Chat</span>
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* Main Big-Screen Workspace */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 scroll-smooth z-10 flex flex-col items-center">
@@ -418,6 +416,43 @@ export default function ChatBox({
         ) : (
           /* CONVERSATION STREAM (Full big-screen central column) */
           <div className="max-w-3xl w-full space-y-6 pb-6">
+            {/* Active Document & New Chat Bar at top of conversation */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/60 mb-2">
+              <div className="flex items-center gap-2">
+                {selectedDoc && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/70 border border-white/80 shadow-sm text-xs backdrop-blur-md">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50 animate-pulse" />
+                    <FileText className="w-3.5 h-3.5 text-purple-700" />
+                    <span className="font-semibold text-[#1E1B4B] max-w-[200px] sm:max-w-xs truncate">
+                      {selectedDoc.file_name}
+                    </span>
+                    <span className="text-slate-400">•</span>
+                    <span className="text-slate-600 text-[11px] font-mono">
+                      {selectedDoc.total_chunks} chunks
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/60 border border-white/70 text-[11px] font-medium text-slate-700 shadow-sm">
+                  {activeMode === "fast" && <Zap className="w-3 h-3 text-amber-500" />}
+                  {activeMode === "indepth" && <Lightbulb className="w-3 h-3 text-purple-600" />}
+                  {activeMode === "hybrid" && <GitFork className="w-3 h-3 text-indigo-500" />}
+                  {activeMode === "holistic" && <Box className="w-3 h-3 text-cyan-600" />}
+                  <span className="capitalize">{activeMode} Mode</span>
+                </div>
+
+                <button
+                  onClick={handleNewChat}
+                  title="Start a new chat session"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/70 hover:bg-white/95 border border-white/80 text-xs font-semibold text-slate-700 hover:text-purple-900 transition shadow-sm"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-purple-600" />
+                  <span>New Chat</span>
+                </button>
+              </div>
+            </div>
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -474,7 +509,7 @@ export default function ChatBox({
                   )}
 
                   {/* Body Text */}
-                  <p className="whitespace-pre-line m-0 font-normal">{msg.text}</p>
+                  {renderFormattedMessage(msg.text)}
 
                   {/* Citations Tag Pills */}
                   {msg.citations && msg.citations.length > 0 && (
