@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,7 @@ from app.routes.auth import router as auth_router
 from app.routes.upload import router as upload_router
 from app.routes.chat import router as chat_router
 from app.services.email_callback.worker import start_worker, stop_worker
+from app.services.embedding.local_embedder import get_embedding_model
 from app.utils.logger import logger
 
 
@@ -21,6 +23,9 @@ async def lifespan(app: FastAPI):
         logger.info("Database tables verified / created successfully.")
     except Exception as e:
         logger.error(f"Database table initialization warning (Database may not be ready yet): {e}")
+
+    # Warm up local embedding model in background so first query has 0 cold-start latency
+    asyncio.create_task(asyncio.to_thread(get_embedding_model))
 
     # Start asynchronous Redis email callback worker
     worker_task = start_worker()

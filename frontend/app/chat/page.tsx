@@ -17,6 +17,7 @@ import {
   Users,
   LogOut,
   ChevronLeft,
+  RotateCcw,
 } from "lucide-react";
 
 export default function ChatPage() {
@@ -27,7 +28,12 @@ export default function ChatPage() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [chatKey, setChatKey] = useState(0);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleNewChat = () => {
+    setChatKey((prev) => prev + 1);
+  };
 
   // Authenticate user
   useEffect(() => {
@@ -155,8 +161,18 @@ export default function ChatPage() {
           </button>
         </nav>
 
-        {/* Right: Search Bar, Notifications, User Avatar */}
+        {/* Right: New Chat Button, Search Bar, Notifications, User Avatar */}
         <div className="flex items-center gap-2.5">
+          {/* Prominent New Chat Button in Corner */}
+          <button
+            onClick={handleNewChat}
+            title="Start a new chat"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/80 hover:bg-white border border-purple-200/90 text-xs font-semibold text-purple-950 shadow-sm transition hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-purple-600" />
+            <span>New Chat</span>
+          </button>
+
           {/* Frosted Search Pill */}
           <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/60 border border-white/80 text-xs text-slate-500 shadow-sm backdrop-blur-md w-44">
             <Search className="w-3.5 h-3.5 text-slate-400" />
@@ -224,6 +240,8 @@ export default function ChatPage() {
           onOpenUpload={() => setIsUploadOpen(true)}
           onToggleTrainingData={() => setIsSidebarOpen(!isSidebarOpen)}
           activeDocCount={documents.length}
+          newChatTrigger={chatKey}
+          onNewChat={handleNewChat}
         />
       </main>
 

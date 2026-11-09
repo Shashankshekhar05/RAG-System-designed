@@ -295,7 +295,7 @@ def ask_question(
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         if is_hindi_content(top_3_chunks):
             queued_notice = (
-                "Grok abhi busy hai. Tumhara answer 2-3 minute me Email pe aa jayega, "
+                "Advisor.ai abhi busy hai. Tumhara answer 2-3 minute me Email pe aa jayega, "
                 "chat me bhi save ho jayega. Tum chat band kar sakte ho."
             )
         else:
